@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:travlog/api/ServiceResult.dart';
 import 'package:travlog/screens/userFinalRegister.dart';
 import 'package:travlog/utils/constants.dart';
-
-import 'home.dart';
+import 'package:travlog/viewmodel/auth/AuthViewModel.dart';
+import 'package:travlog/views/TextInputField.dart';
+import 'package:travlog/views/extension.dart';
 
 class UserRegister extends StatefulWidget {
   @override
@@ -12,6 +13,7 @@ class UserRegister extends StatefulWidget {
 }
 
 class _UserRegister extends State<UserRegister> {
+  AuthViewModel viewModel = AuthViewModel.getInstance();
   TextEditingController _usernameController = new TextEditingController();
   TextEditingController _emailController = new TextEditingController();
   TextEditingController _passwordController = new TextEditingController();
@@ -19,129 +21,42 @@ class _UserRegister extends State<UserRegister> {
   FocusNode _emailFocus = new FocusNode();
   FocusNode _passwordFocus = new FocusNode();
 
-  _fieldFocusChange(
-      BuildContext context, FocusNode currentFocus, FocusNode nextFocus) {
-    currentFocus.unfocus();
-    FocusScope.of(context).requestFocus(nextFocus);
-  }
-
   Widget _buildUsername() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        controller: _usernameController,
-        focusNode: _usernameFocus,
-        onFieldSubmitted: (term) {
-          _fieldFocusChange(context, _usernameFocus, _emailFocus);
-        },
-        decoration: InputDecoration(
-            focusedBorder: const OutlineInputBorder(
-                borderSide: const BorderSide(color: kPrimaryColor)),
-            border: const OutlineInputBorder(),
-            labelText: 'Username',
-            labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-            hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-            hintText: 'Enter username'),
-      ),
-    );
+    return getDefaultTextInputFiled(context, _usernameController, _usernameFocus, _emailFocus, 'Username', 'Enter username');
   }
 
   Widget _buildEmail() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        controller: _emailController,
-        focusNode: _emailFocus,
-        onFieldSubmitted: (term) {
-          _fieldFocusChange(context, _emailFocus, _passwordFocus);
-        },
-        decoration: InputDecoration(
-            focusedBorder: const OutlineInputBorder(
-                borderSide: const BorderSide(color: kPrimaryColor)),
-            border: const OutlineInputBorder(),
-            labelText: 'Email address',
-            labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-            hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-            hintText: 'Enter email address'),
-      ),
-    );
+    return getDefaultTextInputFiled(context, _emailController, _emailFocus, _passwordFocus, 'Email address', 'Enter email address');
   }
 
   Widget _buildPassword() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        obscureText: true,
-        controller: _passwordController,
-        focusNode: _passwordFocus,
-        onFieldSubmitted: (value) {
-          _passwordFocus.unfocus();
-          //_onLogin();
-        },
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        decoration: InputDecoration(
-          focusedBorder: const OutlineInputBorder(
-              borderSide: const BorderSide(color: kPrimaryColor)),
-          border: const OutlineInputBorder(),
-          labelText: 'Password',
-          labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-          hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-          hintText: 'Enter secure password',
-        ),
-      ),
-    );
+    return getDefaultTextInputFiled(context, _passwordController, _passwordFocus, null,  'Password', 'Enter secure password');
   }
 
   _onRegister() async {
-    if (_usernameController.text.isNotEmpty &&
-        _passwordController.text.isNotEmpty &&
-        _emailController.text.isNotEmpty) {
-      final HttpLink httpLink = HttpLink(
-        uri: 'http://127.0.0.1:8000/',
-      );
 
-      String registerMutation() {
-        return '''
-                        mutation{
-                          createUser(username:"${_usernameController.text}", password:"${_passwordController.text}", email: "${_emailController.text}") {
-          __typename
-                             }
-                             }
-                        ''';
-      }
+    String username = _usernameController.text;
+    String password = _passwordController.text;
+    String email = _emailController.text;
 
-      GraphQLClient _client = GraphQLClient(
-          link: httpLink,
-          cache: OptimisticCache(dataIdFromObject: typenameDataIdFromObject));
+    ServiceResult result = await viewModel.registerNewUser(
+        username, password, email);
 
-      final MutationOptions options = MutationOptions(
-        documentNode: gql(registerMutation()),
-      );
-
-      QueryResult result = await _client.mutate(options);
-
-      if (result.hasException) {
-        print(result.exception.toString());
-      }
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => UserFinalRegister(
-            username: _usernameController.text,
-            password: _passwordController.text,
-          ),
-        ),
-      );
+    if(result is Failure) {
+      showToast(context, result.reason);
+      print(result.reason);
+      return;
     }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => UserFinalRegister(
+          username: _usernameController.text,
+          password: _passwordController.text,
+        ),
+      ),
+    );
   }
 
   @override

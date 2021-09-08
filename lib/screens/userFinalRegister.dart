@@ -3,8 +3,15 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
+import 'package:travlog/api/ApiConfig.dart';
+import 'package:travlog/api/GraphQLExecutor.dart';
+import 'package:travlog/api/Queries.dart';
+import 'package:travlog/api/ServiceResult.dart';
 import 'package:travlog/screens/home.dart';
 import 'package:travlog/utils/constants.dart';
+import 'package:travlog/viewmodel/auth/AuthViewModel.dart';
+import 'package:travlog/views/TextInputField.dart';
+import 'package:travlog/views/extension.dart';
 
 class UserFinalRegister extends StatefulWidget {
   final String username;
@@ -17,6 +24,7 @@ class UserFinalRegister extends StatefulWidget {
 }
 
 class _UserFinalRegister extends State<UserFinalRegister> {
+  AuthViewModel viewModel = AuthViewModel.getInstance();
   static String username;
   static String password;
   TextEditingController _fullNameController = new TextEditingController();
@@ -26,150 +34,61 @@ class _UserFinalRegister extends State<UserFinalRegister> {
   FocusNode _bioFocus = new FocusNode();
   FocusNode _mobileFocus = new FocusNode();
 
-  _fieldFocusChange(
-      BuildContext context, FocusNode currentFocus, FocusNode nextFocus) {
-    currentFocus.unfocus();
-    FocusScope.of(context).requestFocus(nextFocus);
-  }
-
   Widget _buildName() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        controller: _fullNameController,
-        focusNode: _fullNameFocus,
-        onFieldSubmitted: (term) {
-          _fieldFocusChange(context, _fullNameFocus, _bioFocus);
-        },
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        decoration: InputDecoration(
-          focusedBorder: const OutlineInputBorder(
-              borderSide: const BorderSide(color: kPrimaryColor)),
-          border: const OutlineInputBorder(),
-          labelText: 'Full name',
-          labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-          hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-          hintText: 'Enter full name',
-        ),
-      ),
-    );
+    return getDefaultTextInputFiled(
+        context, _fullNameController, _fullNameFocus,
+        _bioFocus, 'Full name', 'Enter full name');
   }
 
   Widget _buildBio() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        controller: _bioController,
-        focusNode: _bioFocus,
-        onFieldSubmitted: (term) {
-          _fieldFocusChange(context, _bioFocus, _mobileFocus);
-        },
-        decoration: InputDecoration(
-            focusedBorder: const OutlineInputBorder(
-                borderSide: const BorderSide(color: kPrimaryColor)),
-            border: const OutlineInputBorder(),
-            labelText: 'Bio',
-            labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-            hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-            hintText: 'Enter bio'),
-      ),
-    );
+    return getDefaultTextInputFiled(
+        context, _bioController, _bioFocus,
+        _mobileFocus, 'Bio', 'Enter bio');
   }
 
   Widget _buildMobileNumber() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        controller: _mobileController,
-        focusNode: _mobileFocus,
-        onFieldSubmitted: (value) {
-          _mobileFocus.unfocus();
-          //_onLogin();
-        },
-        decoration: InputDecoration(
-            focusedBorder: const OutlineInputBorder(
-                borderSide: const BorderSide(color: kPrimaryColor)),
-            border: const OutlineInputBorder(),
-            labelText: 'Mobile number',
-            labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-            hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-            hintText: 'Enter mobile number'),
-      ),
-    );
+    return getDefaultTextInputFiled(
+        context, _mobileController, _mobileFocus,
+        null, 'Mobile Number', 'Enter mobile number');
   }
 
   _onFinalRegister() async {
-    if (_fullNameController.text.isNotEmpty &&
-        _mobileController.text.isNotEmpty) {
-      final HttpLink httpLink = HttpLink(
-        uri: 'http://127.0.0.1:8000/',
-      );
 
-      var fullName = _fullNameController.text.toString().split(" ");
-      var firstName = fullName[0];
-      var lastName = fullName[1];
-      print(username);
-      print(password);
-      print(fullName);
-      print(_bioController.text);
+    String fullName = _fullNameController.text;
+    String mobileNumber = _mobileController.text;
+    String bio = _bioController.text;
 
-      String profileUpdate() {
-        return '''
-                        mutation{
-                          tokenAuth(username:"$username", password:"$password") {
-                             token
-                             }
-                          updateProfile(phoneNo:"${_mobileController.text}", firstName:"$firstName", lastName: "$lastName", bio: "${_bioController.text}") {
-                            __typename
-                             }
-                             }
-                        ''';
-      }
+    ServiceResult result = await viewModel.addExtraUserInfo(
+        username, password, fullName, bio, mobileNumber);
 
-      GraphQLClient _client = GraphQLClient(
-          link: httpLink,
-          cache: OptimisticCache(dataIdFromObject: typenameDataIdFromObject));
-
-      final MutationOptions options = MutationOptions(
-        documentNode: gql(profileUpdate()),
-      );
-
-      QueryResult result = await _client.mutate(options);
-
-      if (result.hasException) {
-        print(result.exception.toString());
-      }
-
-      final String token = result.data['tokenAuth']['token'];
-
-      final AuthLink authLink = AuthLink(
-        getToken: () async => 'JWT $token',
-      );
-      final Link link = authLink.concat(httpLink);
-
-      print(token);
-      print(link.toString());
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => Home(
-            username: username,
-            url: link,
-            token: token,
-            password: password,
-          ),
-        ),
-      );
+    if(result is Failure) {
+      print(result.reason);
+      showToast(context, result.reason);
+      return;
     }
+
+    final dynamic data = (result as Success).data;
+    final String token = data['tokenAuth']['token'];
+
+    final AuthLink authLink = AuthLink(
+      getToken: () async => 'JWT $token',
+    );
+    final Link link = authLink.concat(viewModel.getHttpLink());
+
+    print(token);
+    print(link.toString());
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Home(
+          username: username,
+          url: link,
+          token: token,
+          password: password,
+        ),
+      ),
+    );
   }
 
   @override

@@ -1,0 +1,14 @@
+build
+.dart_tool
+
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+
+ios/Pods
+ios/.symlinks
+ios/Flutter/Flutter.podspec
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Generated.xcconfig
+ios/Podfile
+ios/Podfile.lock

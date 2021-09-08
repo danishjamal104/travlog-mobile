@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:graphql_flutter/graphql_flutter.dart';
 import 'package:toast/toast.dart';
+import 'package:travlog/api/GraphQLExecutor.dart';
+import 'package:travlog/api/ServiceResult.dart';
+import 'package:travlog/api/Queries.dart';
 import 'package:travlog/utils/constants.dart';
+import 'package:travlog/viewmodel/auth/AuthViewModel.dart';
+import 'package:travlog/viewmodel/auth/AuthViewModelImpl.dart';
+import 'package:travlog/views/extension.dart';
 
 import 'home.dart';
+import 'package:travlog/views/TextInputField.dart';
 
 class UserLogin extends StatefulWidget {
   @override
@@ -12,120 +19,58 @@ class UserLogin extends StatefulWidget {
 }
 
 class _UserLogin extends State<UserLogin> {
+  AuthViewModel viewModel = AuthViewModel.getInstance();
   TextEditingController userController = new TextEditingController();
   TextEditingController _passwordController = new TextEditingController();
   FocusNode userFocus = new FocusNode();
   FocusNode _passwordFocus = new FocusNode();
 
-  _fieldFocusChange(
-      BuildContext context, FocusNode currentFocus, FocusNode nextFocus) {
-    currentFocus.unfocus();
-    FocusScope.of(context).requestFocus(nextFocus);
-  }
-
   Widget _buildUsername() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        controller: userController,
-        focusNode: userFocus,
-        onFieldSubmitted: (term) {
-          _fieldFocusChange(context, userFocus, _passwordFocus);
-        },
-        decoration: InputDecoration(
-            focusedBorder: const OutlineInputBorder(
-                borderSide: const BorderSide(color: kPrimaryColor)),
-            border: const OutlineInputBorder(),
-            labelText: 'Username',
-            labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-            hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-            hintText: 'Enter your username'),
-      ),
-    );
+    return getDefaultTextInputFiled(context,
+        userController, userFocus, _passwordFocus,
+        'Username', 'Enter your username');
   }
 
   Widget _buildPassword() {
-    return Padding(
-      padding:
-          const EdgeInsets.only(left: 15.0, right: 15.0, top: 15, bottom: 5),
-      //padding: EdgeInsets.symmetric(horizontal: 15),
-      child: TextFormField(
-        obscureText: true,
-        controller: _passwordController,
-        focusNode: _passwordFocus,
-        onFieldSubmitted: (value) {
-          _passwordFocus.unfocus();
-          //_onLogin();
-        },
-        style: TextStyle(fontFamily: 'sans-serif', fontSize: 17),
-        decoration: InputDecoration(
-          focusedBorder: const OutlineInputBorder(
-              borderSide: const BorderSide(color: kPrimaryColor)),
-          border: const OutlineInputBorder(),
-          labelText: 'Password',
-          labelStyle: TextStyle(fontFamily: 'sans-serif', color: kTextColor),
-          hintStyle: TextStyle(fontFamily: 'sans-serif', fontSize: 15),
-          hintText: 'Enter secure password',
-        ),
-      ),
-    );
+    return getDefaultTextInputFiled(context,
+        _passwordController, _passwordFocus, null,
+        'Password', 'Enter secure password');
   }
 
   _onLogin() async {
-    if (userController.text.isNotEmpty && _passwordController.text.isNotEmpty) {
-      final HttpLink httpLink = HttpLink(
-        uri: 'http://127.0.0.1:8000/',
-      );
 
-      final String authMutation = '''
-                        mutation{
-                          tokenAuth(username:"${userController.text}", password:"${_passwordController.text}") {
-                             token
-                             }
-                        }
-                        ''';
+    String username = userController.text;
+    String password = _passwordController.text;
 
-      GraphQLClient _client = GraphQLClient(
-          link: httpLink,
-          cache: OptimisticCache(dataIdFromObject: typenameDataIdFromObject));
+    var result = await viewModel.login(username, password);
 
-      final MutationOptions options = MutationOptions(
-        documentNode: gql(authMutation),
-      );
-
-      QueryResult result = await _client.mutate(options);
-
-      if (result.hasException) {
-        print(result.exception.toString());
-        Toast.show("Sorry, you entered wrong credentials", context,
-            duration: Toast.LENGTH_LONG, gravity: Toast.BOTTOM);
-      }
-
-      final String token = result.data['tokenAuth']['token'];
-
-      final AuthLink authLink = AuthLink(
-        getToken: () async => 'JWT $token',
-      );
-      final Link link = authLink.concat(httpLink);
-
-      print(token);
-      print(_passwordController.text);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => Home(
-            username: userController.text,
-            url: link,
-            token: token,
-            password: _passwordController.text,
-          ),
-        ),
-      );
+    if(result is Failure) {
+      print(result.reason);
+      showToast(context, result.reason);
+      return;
     }
+
+    final dynamic data = (result as Success).data;
+    final String token = data['tokenAuth']['token'];
+    final AuthLink authLink = AuthLink(
+      getToken: () async => 'JWT $token',
+    );
+    final Link link = authLink.concat(viewModel.getHttpLink());
+
+    print(token);
+    print(_passwordController.text);
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => Home(
+          username: userController.text,
+          url: link,
+          token: token,
+          password: _passwordController.text,
+        ),
+      ),
+    );
   }
 
   @override
